@@ -8,7 +8,7 @@
 //     $GIT checkout $@
 //     return
 //   fi
-//   TARGET=$(git nu checkout2 $1)
+//   TARGET=$(git checkout2 $1)
 //   local EC=$?
 //   if [ $EC -eq 64 ]; then
 //     cd $TARGET
