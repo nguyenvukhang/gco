@@ -46,6 +46,7 @@ static char GIT[MAX_GIT_BIN_LEN] = "git";
 // Returns 64 if this function's stdout output is meant to be taken as the
 // target directory for the `cd` command.
 int main(int argc, char *argv[]) {
+  printf2("\x1b[33mDEBUG MODE\x1b[m", 0);
   // Make sure that we only have one argument. Where got time to handle
   // comprehensive argument parsing.
   if (argc != 2) {
@@ -61,7 +62,7 @@ int main(int argc, char *argv[]) {
     GIT[MAX_GIT_BIN_LEN - 1] = '\0';
   }
 
-  printf2("GIT = %s", git_env);
+  printf2("GIT = %s", GIT);
 
   int fd_checkout[2];
   if (pipe(fd_checkout) == -1) {
@@ -109,6 +110,7 @@ int main(int argc, char *argv[]) {
 
   waitpid(pid_checkout, &exit_code, 0);
   exit_code = exit_code == 0 ? 0 : 1;
+
   // By construction, zlen < GIT_CHECKOUT_BUF_SZ;
   const int zlen = read(fd_checkout[0], z, GIT_CHECKOUT_BUF_SZ - 1);
   printf2("Bytes read from `git checkout`: %d", zlen);
@@ -119,16 +121,20 @@ int main(int argc, char *argv[]) {
             "");
   }
 
+  printf2("GIT CHECKOUT OUTPUT:\n%s", z);
+
   // If all goes well, just reflect `git checkout's` stderr output back to the
   // terminal's stderr.
   if (exit_code == 0) {
     write(STDERR_FILENO, z, zlen);
+    printf2("Everything went well, nothing to do anymore.", 0);
     return exit_code;
   }
 
   // If it turns out we're not even in a git repository, then exit early.
   if (strncmp(z, "fatal: not a git repository", 27) == 0) {
     write(STDERR_FILENO, z, zlen);
+    printf2("Not in a git repo", 0);
     return exit_code;
   }
 
@@ -142,8 +148,8 @@ int main(int argc, char *argv[]) {
   // Aborting
   // ```
   if (strncmp(z, "error: Your local changes t", 27) == 0) {
-    printf2("Your local changes (exit code: %d)", exit_code);
     write(STDERR_FILENO, z, zlen);
+    printf2("Your local changes (exit code: %d)", exit_code);
     return exit_code;
   }
 

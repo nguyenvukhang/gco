@@ -2,31 +2,41 @@ use crate::Test;
 use std::{
     fs::File,
     io::Write,
-    process::{Command, Output, Stdio},
+    process::{Command, ExitStatus, Output, Stdio},
 };
 
+#[derive(Debug)]
 pub struct Output2 {
     pub stdout: String,
     pub stderr: String,
+    pub status: ExitStatus,
 }
 
 pub fn commit_file(t: &mut Test, pathspec: &'static str) {
     let mut f =
         File::options().create(true).append(true).open(pathspec).unwrap();
     writeln!(f, "data({})", t.id()).unwrap();
-    git!("add", pathspec).run();
-    git!("commit", "-m", format!("Updated \"{pathspec}\"")).run();
+    git!("add", pathspec).snw();
+    git!("commit", "-m", format!("Updated \"{pathspec}\"")).snw();
 }
 
 pub trait CommandExt {
     fn run(&mut self) -> Output;
     fn get_stdout(&mut self) -> String;
     fn get(&mut self) -> Output2;
+    /// Spawn and wait.
+    fn snw(&mut self);
 }
 
 impl CommandExt for Command {
     fn run(&mut self) -> Output {
         self.output().unwrap()
+    }
+
+    fn snw(&mut self) {
+        let output = self.get();
+        println!("{}", output.stderr);
+        println!("{}", output.stdout);
     }
 
     fn get_stdout(&mut self) -> String {
@@ -46,6 +56,7 @@ impl CommandExt for Command {
         Output2 {
             stdout: stdout.trim().to_string(),
             stderr: stderr.trim().to_string(),
+            status: output.status,
         }
     }
 }

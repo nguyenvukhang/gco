@@ -3,7 +3,10 @@ BUILD_DIR := target
 current: test
 
 configure:
-	cmake -S . -B $(BUILD_DIR)
+	cmake -DCMAKE_BUILD_TYPE=Release -S . -B $(BUILD_DIR)
+
+configure-debug:
+	cmake -DCMAKE_BUILD_TYPE=Debug -S . -B $(BUILD_DIR)
 
 build:
 	cmake --build $(BUILD_DIR)

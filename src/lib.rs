@@ -35,7 +35,6 @@ pub fn setup(tmp_dir: &'static str) -> (Test, PathBuf) {
 
     // The place where we initialize the git history. Fill it out with events.
     let d_base = t.as_path().join("base");
-    let d_base_git = d_base.join(".git");
     // The place where we'll make into a bare repo with the history from `base`.
     let d_repo = t.as_path().join("repo");
 
@@ -43,38 +42,61 @@ pub fn setup(tmp_dir: &'static str) -> (Test, PathBuf) {
     fs::create_dir_all(&d_repo).unwrap();
 
     env::set_current_dir(&d_base).unwrap();
-    git!("init").run();
-    git!("branch", "-m", "main").run();
+    git!("init", "--initial-branch=main").snw();
+    git!("config", "--local", "user.email", "git@git.git").snw();
+    git!("config", "--local", "user.name", "git").snw();
+
+    eprintln!("=== Initialized a git repo ===");
+
     commit_file(&mut t, "README.md");
     commit_file(&mut t, "file-1.txt");
-    let c1 = git!("rev-parse", "HEAD").get_stdout();
+
+    git!("rev-parse", "--verify", "HEAD").snw();
+    let c1 = git!("rev-parse", "--verify", "HEAD").get_stdout();
     commit_file(&mut t, "file-2.txt");
-    let c2 = git!("rev-parse", "HEAD").get_stdout();
+
+    git!("rev-parse", "--verify", "HEAD").snw();
+    let c2 = git!("rev-parse", "--verify", "HEAD").get_stdout();
     commit_file(&mut t, "file-3.txt");
-    let c3 = git!("rev-parse", "HEAD").get_stdout();
+
+    git!("rev-parse", "--verify", "HEAD").snw();
+    let c3 = git!("rev-parse", "--verify", "HEAD").get_stdout();
     commit_file(&mut t, "last.txt");
 
-    git!("checkout", "-b", "B1").run();
-    git!("reset", "--hard", c1).run();
+    {
+        fn ok(sha: &str) -> bool {
+            sha.is_ascii() && sha.len() == 40
+        }
+        assert!(ok(&c1), "Commit #1 is a strange one: {c1}");
+        assert!(ok(&c2), "Commit #2 is a strange one: {c2}");
+        assert!(ok(&c3), "Commit #3 is a strange one: {c3}");
+    }
 
-    git!("checkout", "-b", "B2").run();
-    git!("reset", "--hard", c2).run();
+    git!("checkout", "-b", "B1").snw();
+    git!("reset", "--hard", c1).snw();
+    assert_eq!(git!("branch", "--show-current").get_stdout(), "B1");
 
-    git!("checkout", "-b", "B3").run();
-    git!("reset", "--hard", c3).run();
+    git!("checkout", "-b", "B2").snw();
+    git!("reset", "--hard", c2).snw();
+    assert_eq!(git!("branch", "--show-current").get_stdout(), "B2");
 
-    git!("checkout", "main").run();
+    git!("checkout", "-b", "B3").snw();
+    git!("reset", "--hard", c3).snw();
+    assert_eq!(git!("branch", "--show-current").get_stdout(), "B3");
 
-    fs::rename(&d_base_git, &d_repo).unwrap();
-    git!("-C", &d_base_git, "config", "--bool", "core.bare", "true");
+    git!("checkout", "main").snw();
+    assert_eq!(git!("branch", "--show-current").get_stdout(), "main");
+
+    git!("-C", d_base.join(".git"), "config", "--bool", "core.bare", "true");
+    fs::rename(d_base.join(".git"), &d_repo).unwrap();
     fs::remove_dir_all(d_base).unwrap(); // Intentionally drop `d_base`
     env::set_current_dir(&d_repo).unwrap();
 
-    git!("worktree", "add", "B1").run();
-    git!("worktree", "add", "B2").run();
-    git!("worktree", "add", "D3").run();
-    git!("-C", "D3", "checkout", "B3").run();
-    git!("branch", "-D", "D3").get();
+    git!("worktree", "add", "B1").snw();
+    git!("worktree", "add", "B2").snw();
+    git!("worktree", "add", "D3").snw();
+    git!("-C", d_repo.join("D3"), "checkout", "B3").snw();
+    git!("branch", "-D", "D3").snw();
 
     (t, d_repo)
 }
