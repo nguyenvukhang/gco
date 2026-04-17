@@ -7,7 +7,7 @@ mod shell;
 mod types;
 
 pub use {
-    shell::{CommandExt, OutputExt, commit_file},
+    shell::{CommandExt, OutputExt, cd, commit_file},
     types::Test,
 };
 
@@ -30,8 +30,8 @@ use std::{fs, path::PathBuf};
 ///       ├── two
 ///       ├── three
 ///       └── README.md
-pub fn setup(tmp_dir: &'static str) -> (Test, PathBuf) {
-    let mut t = Test::new(tmp_dir);
+pub fn setup() -> (Test, PathBuf) {
+    let mut t = Test::new("gco-test");
 
     // The place where we initialize the git history. Fill it out with events.
     let d_base = t.as_path().join("base");

@@ -1,7 +1,9 @@
 use crate::Test;
 use std::{
+    env,
     fs::File,
     io::Write,
+    path::{Path, PathBuf},
     process::{Command, ExitStatus, Output, Stdio},
 };
 
@@ -18,6 +20,16 @@ pub fn commit_file(t: &mut Test, pathspec: &'static str) {
     writeln!(f, "data({})", t.id()).unwrap();
     git!("add", pathspec).snw();
     git!("commit", "-m", format!("Updated \"{pathspec}\"")).snw();
+}
+
+/// To deal with macOS's weird implementation of the `/tmp` directory, we shall
+/// use this quick little routine to obtain the OS's view of the directory.
+pub fn cd<P: AsRef<Path>>(dir: P) -> PathBuf {
+    let cwd = env::current_dir().unwrap();
+    env::set_current_dir(dir).unwrap();
+    let result = env::current_dir().unwrap();
+    env::set_current_dir(cwd).unwrap();
+    result
 }
 
 pub trait CommandExt {

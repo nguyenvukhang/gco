@@ -1,52 +1,41 @@
 use git_checkout2::*;
 
 use std::env;
-use std::path::{Path, PathBuf};
-
-fn cd<P: AsRef<Path>>(dir: P) -> PathBuf {
-    let cwd = env::current_dir().unwrap();
-    env::set_current_dir(dir).unwrap();
-    let result = env::current_dir().unwrap();
-    env::set_current_dir(cwd).unwrap();
-    result
-}
 
 #[test]
 fn setup_test_branch_1() {
-    let (_t, d_repo) = setup("x");
-    let output =
-        git!("-C", d_repo.join("B1"), "branch", "--show-current").get();
-    assert_eq!(output.stdout.trim(), "B1")
+    let (_t, root) = setup();
+    assert_eq!(
+        git!("-C", root.join("B1"), "branch", "--show-current").get_stdout(),
+        "B1"
+    )
 }
 
 #[test]
 fn setup_test_branch_2() {
-    let (_t, d_repo) = setup("x");
-    let output =
-        git!("-C", d_repo.join("B2"), "branch", "--show-current").get();
-    assert_eq!(output.stdout.trim(), "B2")
+    let (_t, root) = setup();
+    assert_eq!(
+        git!("-C", root.join("B2"), "branch", "--show-current").get_stdout(),
+        "B2"
+    )
 }
 
 #[test]
 fn setup_test_branch_3() {
-    let (_t, d_repo) = setup("x");
-    let output =
-        git!("-C", d_repo.join("D3"), "branch", "--show-current").get();
-    assert_eq!(output.stdout.trim(), "B3")
+    let (_t, root) = setup();
+    assert_eq!(
+        git!("-C", root.join("D3"), "branch", "--show-current").get_stdout(),
+        "B3"
+    )
 }
 
 /// Jump from the lift-lobby (git workspace area, but not in any git workspace)
 #[test]
 fn t1() {
-    let (_t, d_repo) = setup("t1");
-    env::set_current_dir(&d_repo).unwrap();
+    let (_t, root) = setup();
+    env::set_current_dir(&root).unwrap();
     let output = git!("checkout2", "B1").get();
-    eprintln!("[git-checkout2 stdout]:\n{}", output.stdout);
-    eprintln!("[git-checkout2 stderr]:\n{}", output.stderr);
-
-    let lhs = cd(output.stdout.trim());
-    let rhs = cd(d_repo.join("B1"));
-    assert_eq!(lhs, rhs);
+    assert_eq!(cd(output.stdout), cd(root.join("B1")));
     assert_eq!(output.status.code(), Some(64));
 }
 
@@ -54,15 +43,10 @@ fn t1() {
 /// fatal: 'B2' is already used by worktree at '/tmp/gco/repo/B2'
 #[test]
 fn t2() {
-    let (_t, d_repo) = setup("t2");
-    env::set_current_dir(d_repo.join("B1")).unwrap();
+    let (_t, root) = setup();
+    env::set_current_dir(root.join("B1")).unwrap();
     let output = git!("checkout2", "B2").get();
-    eprintln!("[git-checkout2 stdout]:\n{}", output.stdout);
-    eprintln!("[git-checkout2 stderr]:\n{}", output.stderr);
-
-    let lhs = cd(output.stdout.trim());
-    let rhs = cd(d_repo.join("B2"));
-    assert_eq!(lhs, rhs);
+    assert_eq!(cd(output.stdout), cd(root.join("B2")));
     assert_eq!(output.status.code(), Some(64));
 }
 
@@ -71,15 +55,10 @@ fn t2() {
 /// fatal: 'B3' is already used by worktree at '/tmp/gco/repo/D3'
 #[test]
 fn t3() {
-    let (_t, d_repo) = setup("t3");
-    env::set_current_dir(d_repo.join("B1")).unwrap();
+    let (_t, root) = setup();
+    env::set_current_dir(root.join("B1")).unwrap();
     let output = git!("checkout2", "B3").get();
-    eprintln!("[git-checkout2 stdout]:\n{}", output.stdout);
-    eprintln!("[git-checkout2 stderr]:\n{}", output.stderr);
-
-    let lhs = cd(output.stdout.trim());
-    let rhs = cd(d_repo.join("D3"));
-    assert_eq!(lhs, rhs);
+    assert_eq!(cd(output.stdout), cd(root.join("D3")));
     assert_eq!(output.status.code(), Some(64));
 }
 
@@ -87,14 +66,33 @@ fn t3() {
 /// of B3.
 #[test]
 fn t4() {
-    let (_t, d_repo) = setup("t4");
-    env::set_current_dir(d_repo.join("B1")).unwrap();
+    let (_t, root) = setup();
+    env::set_current_dir(root.join("B1")).unwrap();
     let output = git!("checkout2", "D3").get();
-    eprintln!("[git-checkout2 stdout]:\n{}", output.stdout);
-    eprintln!("[git-checkout2 stderr]:\n{}", output.stderr);
-
-    let lhs = cd(output.stdout.trim());
-    let rhs = cd(d_repo.join("D3"));
-    assert_eq!(lhs, rhs);
+    assert_eq!(cd(output.stdout), cd(root.join("D3")));
     assert_eq!(output.status.code(), Some(64));
+}
+
+/// `git-checkout2` should return the same exit code as `git checkout` in an
+/// empty repository.
+#[test]
+fn empty_directory() {
+    let t = Test::new("gco-test");
+    let _ = std::fs::remove_dir_all(t.as_path()).unwrap();
+    std::fs::create_dir(t.as_path()).unwrap();
+    env::set_current_dir(t.as_path()).unwrap();
+    let lhs = git!("checkout2", "zeno").get();
+    let rhs = git!("checkout", "zeno").get();
+    assert_eq!(lhs.status, rhs.status);
+}
+
+/// `git-checkout2` should return the same exit code as `git checkout` when a
+/// branch doesn't exist.
+#[test]
+fn branch_not_exists() {
+    let (_t, root) = setup();
+    env::set_current_dir(root.join("B1")).unwrap();
+    let lhs = git!("checkout2", "zeno").get();
+    let rhs = git!("checkout", "zeno").get();
+    assert_eq!(lhs.status, rhs.status);
 }

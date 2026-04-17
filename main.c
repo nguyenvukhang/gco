@@ -59,7 +59,7 @@ struct pipedata {
 // Returns 64 if this function's stdout output is meant to be taken as the
 // target directory for the `cd` command.
 int main(int argc, char *argv[]) {
-  ERR("\x1b[33mDEBUG MODE\x1b[m");
+  debug_printf("\x1b[33mDEBUG MODE\x1b[m", 0);
 
   setup_git_binary();
   debug_printf("GIT = %s", GIT);
@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
     argv[argc + 2] = NULL;
     execvp(GIT, argv2);
   }
+  debug_printf("Indeed only has one CLI argument.", 0);
 
   // Since there's only one CLI argument, we shall call it GOAL.
 #define GOAL argv[1]
@@ -103,8 +104,10 @@ int main(int argc, char *argv[]) {
 
   /* Child process: `git worktree` */
   if (pd_w.pid == 0) { //
-    // Capture `git worktree` STDOUT, and let the STDERR shine through.
+    // Capture `git worktree` STDOUT.
     dup2(pd_w.fd[1], STDOUT_FILENO);
+    // Don't listen to stderr. We shall not parse that at all.
+    close(STDERR_FILENO);
     close(pd_w.fd[0]), close(pd_w.fd[1]);
     execlp(GIT, GIT, "worktree", "list", "--porcelain", NULL);
   } else {
@@ -113,6 +116,7 @@ int main(int argc, char *argv[]) {
 
   int git_checkout_exit_code;
   waitpid(pd_c.pid, &git_checkout_exit_code, 0);
+  git_checkout_exit_code >>= 8; // Get the high bits.
 
   /// `git checkout` byte buffer.
   char buf_c[GIT_CHECKOUT_BUF_MAX];
@@ -126,20 +130,20 @@ int main(int argc, char *argv[]) {
     ERR("due to insufficient buffer size.");
   }
 
-  debug_printf("GIT CHECKOUT OUTPUT:\n%s", buf_c);
+  debug_printf("GIT CHECKOUT OUTPUT: \"%s\"", buf_c);
 
   // If all goes well, just reflect `git checkout's` stderr output back to the
   // terminal's stderr.
   if (git_checkout_exit_code == 0) {
     write(STDERR_FILENO, buf_c, buf_c_len);
-    ERR("Everything went well, nothing to do anymore.");
+    debug_printf("Everything went well, nothing to do anymore.", 0);
     return git_checkout_exit_code;
   }
 
   // If it turns out we're not even in a git repository, then exit early.
   if (STARTS_WITH(buf_c, "fatal: not a git repository")) {
     write(STDERR_FILENO, buf_c, buf_c_len);
-    ERR("Not in a git repo");
+    debug_printf("Not in a git repo, exit code %d", git_checkout_exit_code);
     return git_checkout_exit_code;
   }
 
@@ -212,7 +216,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  ERR("Target not found. git-checkout2 is unable to help.");
+  debug_printf("Target not found. git-checkout2 is unable to help.", 0);
   write(STDERR_FILENO, buf_c, buf_c_len);
   return git_checkout_exit_code;
 }
