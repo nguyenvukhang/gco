@@ -30,10 +30,10 @@
 
 // #define DEBUG
 #ifdef DEBUG
-#define printf2(format, ...)                                                   \
+#define debug_printf(format, ...)                                              \
   fprintf(stderr, "[\x1b[32mINFO\x1b[m] " format "\n", __VA_ARGS__)
 #else
-#define printf2(...)
+#define debug_printf(...)
 #endif
 
 #define MAX(A, B) (A < B ? B : A)
@@ -46,12 +46,12 @@ static char GIT[MAX_GIT_BIN_LEN] = "git";
 // Returns 64 if this function's stdout output is meant to be taken as the
 // target directory for the `cd` command.
 int main(int argc, char *argv[]) {
-  printf2("\x1b[33mDEBUG MODE\x1b[m", 0);
+  debug_printf("\x1b[33mDEBUG MODE\x1b[m", 0);
   // Make sure that we only have one argument. Where got time to handle
   // comprehensive argument parsing.
   if (argc != 2) {
-    printf("git-checkout2 expects exactly 1 argument.\n"
-           "In exchange, it will do its best to locate this target for you.\n");
+    ERR("git-checkout2 expects exactly 1 argument.");
+    ERR("In exchange, it will do its best to locate this target for you.");
     return 1;
   }
 
@@ -62,18 +62,18 @@ int main(int argc, char *argv[]) {
     GIT[MAX_GIT_BIN_LEN - 1] = '\0';
   }
 
-  printf2("GIT = %s", GIT);
+  debug_printf("GIT = %s", GIT);
 
   int fd_checkout[2];
   if (pipe(fd_checkout) == -1) {
-    printf("pipe failed. This is necessary to read `git checkout` output.\n");
+    ERR("pipe failed. This is necessary to read `git checkout` output.");
     return 1;
   }
 
   pid_t pid_checkout = fork();
 
   if (pid_checkout == -1) {
-    printf("fork failed. This is necessary to run `git checkout`.\n");
+    ERR("fork failed. This is necessary to run `git checkout`.");
     return 1;
   } else if (pid_checkout == 0) {
     /* Child process: `git checkout` */
@@ -88,13 +88,13 @@ int main(int argc, char *argv[]) {
 
   int fd_worktree[2];
   if (pipe(fd_worktree) == -1) {
-    printf("pipe failed. This is necessary to read `git worktree` output.\n");
+    ERR("pipe failed. This is necessary to read `git worktree` output.");
     return 1;
   }
 
   pid_t pid_worktree = fork();
   if (pid_worktree == -1) {
-    printf("fork failed. This is necessary to run `git worktree`.\n");
+    ERR("fork failed. This is necessary to run `git worktree`.");
     return 1;
   } else if (pid_worktree == 0) {
     /* Child process: `git worktree` */
@@ -113,28 +113,28 @@ int main(int argc, char *argv[]) {
 
   // By construction, zlen < GIT_CHECKOUT_BUF_SZ;
   const int zlen = read(fd_checkout[0], z, GIT_CHECKOUT_BUF_SZ - 1);
-  printf2("Bytes read from `git checkout`: %d", zlen);
+  debug_printf("Bytes read from `git checkout`: %d", zlen);
   z[zlen] = '\0';
   if (zlen == GIT_CHECKOUT_BUF_SZ) {
-    printf2("Warning: possibly missing data from `git checkout` due to\n"
-            "insufficient buffer size.%s",
-            "");
+    debug_printf("Warning: possibly missing data from `git checkout` due to\n"
+                 "insufficient buffer size.%s",
+                 "");
   }
 
-  printf2("GIT CHECKOUT OUTPUT:\n%s", z);
+  debug_printf("GIT CHECKOUT OUTPUT:\n%s", z);
 
   // If all goes well, just reflect `git checkout's` stderr output back to the
   // terminal's stderr.
   if (exit_code == 0) {
     write(STDERR_FILENO, z, zlen);
-    printf2("Everything went well, nothing to do anymore.", 0);
+    debug_printf("Everything went well, nothing to do anymore.", 0);
     return exit_code;
   }
 
   // If it turns out we're not even in a git repository, then exit early.
   if (strncmp(z, "fatal: not a git repository", 27) == 0) {
     write(STDERR_FILENO, z, zlen);
-    printf2("Not in a git repo", 0);
+    debug_printf("Not in a git repo", 0);
     return exit_code;
   }
 
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
   // ```
   if (strncmp(z, "error: Your local changes t", 27) == 0) {
     write(STDERR_FILENO, z, zlen);
-    printf2("Your local changes (exit code: %d)", exit_code);
+    debug_printf("Your local changes (exit code: %d)", exit_code);
     return exit_code;
   }
 
@@ -176,12 +176,12 @@ int main(int argc, char *argv[]) {
   waitpid(pid_worktree, NULL, 0);
   // By construction, wlen < GIT_WORKTREE_BUF_SZ;
   const int wlen = read(fd_worktree[0], w, GIT_WORKTREE_BUF_SZ - 1);
-  printf2("Bytes read from `git worktree`: %d", wlen);
+  debug_printf("Bytes read from `git worktree`: %d", wlen);
   w[wlen] = '\0';
   if (wlen == GIT_WORKTREE_BUF_SZ) {
-    printf2("Warning: possibly missing data from `git worktree` due to\n"
-            "insufficient buffer size.%s",
-            "");
+    debug_printf("Warning: possibly missing data from `git worktree` due to\n"
+                 "insufficient buffer size.%s",
+                 "");
   }
 
   // We borrow argc to store the length of `argv[1]`.
@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
       continue;
     }
     c_line += 9;
-    printf2("(worktree) %s", c_line);
+    debug_printf("(worktree) %s", c_line);
     // Check to see if the current line ends with the goal (argv[1]).
     if ((c_left = c_right - argc - 1) < c_line) {
       continue;
@@ -203,7 +203,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  printf2("Target not found. git-checkout2 is unable to help.%s", "");
+  debug_printf("Target not found. git-checkout2 is unable to help.%s", "");
   write(STDERR_FILENO, z, zlen);
   return exit_code;
 }
