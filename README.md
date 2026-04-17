@@ -31,23 +31,23 @@ The goal of returning an exit code of 64 is to tell the shell when to execute
 
 Moreover, in the spirit of simplicity, `git-checkout2` will only accept one
 shell argument. We request that other cases are handled by the user's shell
-config. So then, here's the suggested zsh shell function to wrap `git-checkout2`:
+config. So then, here's the suggested (POSIX-compliant) shell function to wrap
+`git checkout`:
 
-```zsh
+```sh
 gco() {
-  if [ $# -gt 1 ] || [ $# -eq 0 ]; then
-    git checkout $@
-    return
-  fi
   TARGET=$(git checkout2 $1)
-  local EC=$?
-  if [ $EC -eq 64 ]; then
+  EXIT_CODE=$?
+  if [ $EXIT_CODE -eq 64 ]; then
     cd $TARGET
   fi
   unset TARGET
-  return $EC
+  return $EXIT_CODE
 }
 ```
+
+So now, we shall use `gco` in the place of `git checkout` and the `cd` magic
+would be achieved.
 
 ## Nerding out
 

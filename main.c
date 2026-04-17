@@ -21,8 +21,10 @@
 
 // #define DEBUG
 #ifdef DEBUG
+static int DEBUG_ID = 0;
 #define debug_printf(format, ...)                                              \
-  fprintf(stderr, "[\x1b[32mINFO\x1b[m] " format "\n", __VA_ARGS__)
+  fprintf(stderr, "[\x1b[32mINFO\x1b[m] (%d) " format "\n", DEBUG_ID++,        \
+          __VA_ARGS__)
 #else
 #define debug_printf(...)
 #endif
@@ -68,14 +70,16 @@ int main(int argc, char *argv[]) {
   // to original `git checkout` behaviour. This ensures that there is simplicity
   // in the code following this.
   if (argc != 2) {
+    debug_printf("Has complex CLI arguments (%d). Bypassing.", argc);
     char *argv2[argc + 2]; // +1 for "checkout", +1 for NULL.
     argv2[0] = GIT;
     argv2[1] = "checkout";
-    memcpy(argv2[2], argv, argc - 1);
-    argv[argc + 2] = NULL;
-    execvp(GIT, argv2);
+    memcpy(&argv2[2], &argv[1], sizeof(char *) * (argc - 1));
+    argv2[argc + 1] = NULL;
+    return execvp(GIT, argv2);
+  } else {
+    debug_printf("\x1b[32mIndeed only has one CLI argument.\x1b[m", 0);
   }
-  debug_printf("Indeed only has one CLI argument.", 0);
 
   // Since there's only one CLI argument, we shall call it GOAL.
 #define GOAL argv[1]
@@ -196,8 +200,7 @@ int main(int argc, char *argv[]) {
     ERR("due to insufficient buffer size.");
   }
 
-  // We borrow argc to store the length of `GOAL`.
-  argc = strlen(GOAL);
+  const int goal_len = strlen(GOAL);
 
   for (c_right = buf_w; (c_line = strsep(&c_right, "\n"));) {
     if (!STARTS_WITH(c_line, "worktree ")) {
@@ -206,10 +209,10 @@ int main(int argc, char *argv[]) {
     c_line += 9;
     debug_printf("(worktree) %s", c_line);
     // Check to see if the current line ends with the goal.
-    if ((c_left = c_right - argc - 1) < c_line) {
+    if ((c_left = c_right - goal_len - 1) < c_line) {
       continue;
     }
-    if (strncmp(c_left, GOAL, argc) == 0) {
+    if (strncmp(c_left, GOAL, goal_len) == 0) {
       // OUTPUT ==========
       write(STDOUT_FILENO, c_line, c_right - c_line - 1);
       return 64;
