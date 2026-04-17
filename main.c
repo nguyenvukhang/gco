@@ -1,22 +1,4 @@
-// An opinionated wrapper around `git checkout`. If the checkout command worked
-// then nothing is done. Otherwise, this will try to locate the branch among
-// all the existing worktrees, and then print that directory to stdout so that
-// we can do something like
-// ```zsh
-// gco() {
-//   if [[ $# -gt 1 ]]; then
-//     $GIT checkout $@
-//     return
-//   fi
-//   TARGET=$(git checkout2 $1)
-//   local EC=$?
-//   if [ $EC -eq 64 ]; then
-//     cd $TARGET
-//   fi
-//   unset TARGET
-//   return $EC
-// }
-// ```
+// STDOUT is reserved for printing the target directory.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,8 +27,9 @@ static char GIT[MAX_GIT_BIN_LEN] = "git";
 
 // Returns 64 if this function's stdout output is meant to be taken as the
 // target directory for the `cd` command.
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
   debug_printf("\x1b[33mDEBUG MODE\x1b[m", 0);
+
   // Make sure that we only have one argument. Where got time to handle
   // comprehensive argument parsing.
   if (argc != 2) {
@@ -54,6 +37,8 @@ int main(int argc, char *argv[]) {
     ERR("In exchange, it will do its best to locate this target for you.");
     return 1;
   }
+
+#define GOAL argv[1]
 
   // The git path supplied by the $GIT environment variable.
   char *git_env = getenv("GIT");
@@ -80,7 +65,7 @@ int main(int argc, char *argv[]) {
     dup2(fd_checkout[1], STDERR_FILENO); // Pipe stderr to the write end.
     close(fd_checkout[0]);
     close(fd_checkout[1]);
-    execlp(GIT, GIT, "checkout", argv[1], NULL);
+    execlp(GIT, GIT, "checkout", GOAL, NULL);
   }
   close(fd_checkout[1]);
 
@@ -184,19 +169,19 @@ int main(int argc, char *argv[]) {
                  "");
   }
 
-  // We borrow argc to store the length of `argv[1]`.
-  argc = strlen(argv[1]);
+  // We borrow argc to store the length of `GOAL`.
+  argc = strlen(GOAL);
   for (c_right = w; (c_line = strsep(&c_right, "\n"));) {
     if (strncmp(c_line, "worktree ", 9) != 0) {
       continue;
     }
     c_line += 9;
     debug_printf("(worktree) %s", c_line);
-    // Check to see if the current line ends with the goal (argv[1]).
+    // Check to see if the current line ends with the goal.
     if ((c_left = c_right - argc - 1) < c_line) {
       continue;
     }
-    if (strncmp(c_left, argv[1], argc) == 0) {
+    if (strncmp(c_left, GOAL, argc) == 0) {
       // OUTPUT ==========
       write(STDOUT_FILENO, c_line, c_right - c_line - 1);
       return 64;
