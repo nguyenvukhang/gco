@@ -7,7 +7,7 @@ shell can `cd` to it.
 
 ## More on `git-checkout2`
 
-When you're working with multiple [git
+Consider this: you're working with multiple [git
 worktrees](https://git-scm.com/docs/git-worktree), and you run a command like
 `git checkout dev`. The expected next state is that your current directory is
 populated with files from the commit which `dev` points to, and your expected
