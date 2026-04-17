@@ -6,7 +6,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define MAX_GIT_BIN_LEN 16
 #define GIT_CHECKOUT_BUF_SZ 512
 #define GIT_WORKTREE_BUF_SZ 2048
 
@@ -23,7 +22,15 @@
 
 #define ERR(msg) write(STDERR_FILENO, msg "\n", sizeof(msg) + 1)
 
-static char GIT[MAX_GIT_BIN_LEN] = "git";
+static char *GIT;
+
+// Set the `GIT` variable.
+void setup_git_binary() {
+  GIT = getenv("GIT");
+  if (GIT == NULL) {
+    GIT = "git";
+  }
+}
 
 // Returns 64 if this function's stdout output is meant to be taken as the
 // target directory for the `cd` command.
@@ -39,14 +46,7 @@ int main(int argc, const char *argv[]) {
   }
 
 #define GOAL argv[1]
-
-  // The git path supplied by the $GIT environment variable.
-  char *git_env = getenv("GIT");
-  if (git_env != NULL) {
-    strncpy(GIT, git_env, MAX_GIT_BIN_LEN);
-    GIT[MAX_GIT_BIN_LEN - 1] = '\0';
-  }
-
+  setup_git_binary();
   debug_printf("GIT = %s", GIT);
 
   int fd_checkout[2];
