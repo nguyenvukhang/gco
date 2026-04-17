@@ -19,6 +19,9 @@
 #define STARTS_WITH(haystack, prefix)                                          \
   (strncmp(haystack, prefix, sizeof(prefix) - 1) == 0)
 
+#define FATAL_NOT_GIT_REPO "fatal: not a git repository"
+#define IS_ALREADY_USED_AT "is already used by worktree at"
+
 // #define DEBUG
 #ifdef DEBUG
 static int DEBUG_ID = 0;
@@ -32,12 +35,13 @@ static int DEBUG_ID = 0;
 #define MAX(A, B) (A < B ? B : A)
 #define MIN(A, B) (A < B ? A : B)
 
-#define ERR(msg) write(STDERR_FILENO, msg "\n", sizeof(msg) + 1)
+#define ERR(msg) write(STDERR_FILENO, msg, sizeof(msg));
+#define ERRLN(msg) ERR(msg), write(STDERR_FILENO, "\n", 1);
 
 static char *GIT;
 
 // Set the `GIT` variable.
-void setup_git_binary() {
+static inline void setup_git_binary() {
   GIT = getenv("GIT");
   if (GIT == NULL) {
     GIT = "git";
@@ -51,10 +55,16 @@ struct pipedata {
 
 #define PIPE_AND_FORK(pd, COMMAND)                                             \
   if (pipe(pd.fd) == -1) {                                                     \
-    ERR("pipe failed. This is necessary to run `git " #COMMAND "`.");          \
+    ERR("pipe");                                                               \
+    ERR(" failed. This is necessary to run `git ");                            \
+    ERR(#COMMAND);                                                             \
+    ERR("`.");                                                                 \
     return 1;                                                                  \
   } else if ((pd.pid = fork()) == -1) {                                        \
-    ERR("fork failed. This is necessary to run `git " #COMMAND "`.");          \
+    ERR("fork");                                                               \
+    ERR(" failed. This is necessary to run `git ");                            \
+    ERR(#COMMAND);                                                             \
+    ERR("`.");                                                                 \
     return 1;                                                                  \
   }
 
@@ -130,8 +140,9 @@ int main(int argc, char *argv[]) {
   debug_printf("Bytes read from `git checkout`: %d", buf_c_len);
   buf_c[buf_c_len] = '\0';
   if (buf_c_len + 3 == GIT_CHECKOUT_BUF_MAX) {
-    ERR("Warning: possibly missing bytes from `git checkout` output");
-    ERR("due to insufficient buffer size.");
+    ERR("Warning: possibly missing bytes from `git ");
+    ERR("checkout");
+    ERR("` output due to insufficient buffer size.");
   }
 
   debug_printf("GIT CHECKOUT OUTPUT: \"%s\"", buf_c);
@@ -145,7 +156,7 @@ int main(int argc, char *argv[]) {
   }
 
   // If it turns out we're not even in a git repository, then exit early.
-  if (STARTS_WITH(buf_c, "fatal: not a git repository")) {
+  if (STARTS_WITH(buf_c, FATAL_NOT_GIT_REPO)) {
     write(STDERR_FILENO, buf_c, buf_c_len);
     debug_printf("Not in a git repo, exit code %d", git_checkout_exit_code);
     return git_checkout_exit_code;
@@ -171,13 +182,13 @@ int main(int argc, char *argv[]) {
   //
   // If we see that this branch is already used at another worktree, we print
   // the directory to that worktree to STDOUT so the parent shell can go there.
-  if (STARTS_WITH(buf_c, "fatal:") &&
-      ((c_left = strstr(buf_c, "is already used by worktree at")) != NULL)) {
-    if ((c_left = strchr(c_left + 30, '\'')) == NULL) {
-      ERR("Parsing error at \"is already used by worktree at...\"");
-    }
-    if ((c_right = strchr(++c_left, '\'')) == NULL) {
-      ERR("Parsing error at \"is already used by worktree at...\"");
+  if (strncmp(buf_c, FATAL_NOT_GIT_REPO, 6) == 0 &&
+      ((c_left = strstr(buf_c, IS_ALREADY_USED_AT)) != NULL)) {
+    if ((c_left = strchr(c_left + 30, '\'')) == NULL ||
+        (c_right = strchr(++c_left, '\'')) == NULL) {
+      ERR("Parsing error at \"");
+      ERR(IS_ALREADY_USED_AT);
+      ERR("...\"");
     }
     // OUTPUT ==========
     write(STDOUT_FILENO, c_left, c_right - c_left);
@@ -196,14 +207,15 @@ int main(int argc, char *argv[]) {
   buf_w[buf_w_len] = '\0';
 
   if (buf_w_len + 3 == GIT_WORKTREE_BUF_MAX) {
-    ERR("Warning: possibly missing bytes from `git worktree` output");
-    ERR("due to insufficient buffer size.");
+    ERR("Warning: possibly missing bytes from `git ");
+    ERR("worktree");
+    ERR("` output due to insufficient buffer size.");
   }
 
   const int goal_len = strlen(GOAL);
 
   for (c_right = buf_w; (c_line = strsep(&c_right, "\n"));) {
-    if (!STARTS_WITH(c_line, "worktree ")) {
+    if (!STARTS_WITH(c_line, "worktree")) {
       continue;
     }
     c_line += 9;
