@@ -1,6 +1,20 @@
 BUILD_DIR := target
 
-current: test
+MAKEFILE_PATH := $(realpath $(lastword $(MAKEFILE_LIST)))
+MAKEFILE_DIR := $(dir $(MAKEFILE_PATH))
+
+VALGRIND_LOG := $(MAKEFILE_DIR)/valgrind-log-%p.txt
+
+VALGRIND_FLAGS :=
+VALGRIND_FLAGS += --trace-children=yes
+VALGRIND_FLAGS += --show-error-list=yes
+# VALGRIND_FLAGS += --leak-check=full
+# VALGRIND_FLAGS += --show-leak-kinds=all
+VALGRIND_FLAGS += --log-file=$(VALGRIND_LOG)
+# VALGRIND_FLAGS += --xml=yes
+# VALGRIND_FLAGS += --xml-file=valgrind.xml
+
+current: v test
 
 configure:
 	cmake -DCMAKE_BUILD_TYPE=Release -S . -B $(BUILD_DIR)
@@ -14,15 +28,12 @@ build:
 install: build
 	cmake --install $(BUILD_DIR)
 
-run: install
-	git -C /home/khang/repos/dwm nu checkout2 k
+v: configure install
+	-@rm -f valgrind-log*.txt
+	-cd /home/khang/repos/dwm && \
+	valgrind $(VALGRIND_FLAGS) -- git-checkout2 snoop
 
-v: install
-	cd /home/khang/repos/dwm && \
-	valgrind --trace-children=yes --show-error-list=yes -- \
-	git-checkout2 meme
-
-test: install
+test: configure install
 	cargo test -- --test-threads=1
 
 fmt:
