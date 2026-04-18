@@ -1,5 +1,5 @@
-// STDOUT is reserved for printing the target directory. Always try to return
-// the exit code of the underlying `git checkout` command.
+// STDOUT is reserved for printing the target directory. Always try to exit with
+// the same exit code of the underlying `git checkout` command.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -96,9 +96,6 @@ int main(int argc, char *argv[]) {
 
   // Pipe data for `git checkout`.
   struct pipedata pd_c;
-  // Pipe data for `git worktree`.
-  struct pipedata pd_w;
-
   PIPE_AND_FORK(pd_c, checkout);
 
   /* Child process: `git checkout` */
@@ -112,20 +109,6 @@ int main(int argc, char *argv[]) {
     execlp(GIT, GIT, "checkout", GOAL, NULL);
   } else {
     close(pd_c.fd[1]);
-  }
-
-  PIPE_AND_FORK(pd_w, worktree);
-
-  /* Child process: `git worktree` */
-  if (pd_w.pid == 0) { //
-    // Capture `git worktree` STDOUT.
-    dup2(pd_w.fd[1], STDOUT_FILENO);
-    // Don't listen to stderr. We shall not parse that at all.
-    close(STDERR_FILENO);
-    close(pd_w.fd[0]), close(pd_w.fd[1]);
-    execlp(GIT, GIT, "worktree", "list", "--porcelain", NULL);
-  } else {
-    close(pd_w.fd[1]);
   }
 
   int git_checkout_exit_code;
@@ -195,7 +178,24 @@ int main(int argc, char *argv[]) {
     return 64;
   }
 
-  // Now, we fallback to `git worktree output`.
+  /* Now, we fallback to `git worktree output`. */
+
+  // Pipe data for `git worktree`.
+  struct pipedata pd_w;
+  PIPE_AND_FORK(pd_w, worktree);
+
+  /* Child process: `git worktree` */
+  if (pd_w.pid == 0) { //
+    // Capture `git worktree` STDOUT.
+    dup2(pd_w.fd[1], STDOUT_FILENO);
+    // Don't listen to stderr. We shall not parse that at all.
+    close(STDERR_FILENO);
+    close(pd_w.fd[0]), close(pd_w.fd[1]);
+    execlp(GIT, GIT, "worktree", "list", "--porcelain", NULL);
+  } else {
+    close(pd_w.fd[1]);
+  }
+
   waitpid(pd_w.pid, NULL, 0);
 
   /// `git worktree` byte buffer.
